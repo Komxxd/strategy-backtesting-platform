@@ -1,19 +1,20 @@
 const { WebSocketV2 } = require("smartapi-javascript");
-const authService = require("./auth.service");
 
 let socket = null;
 let isConnected = false;
 
-function initMarketSocket() {
+function initMarketSocket({ jwtToken , feedToken}) {
   if (socket) return socket;
 
-  const session = authService.getSession();
+  if (!jwtToken || !feedToken) {
+    throw new Error("jwtToken and feedToken are required to init market socket");
+  }
 
   socket = new WebSocketV2({
-    jwttoken: session.data.jwtToken,
+    jwttoken: jwtToken,
+    feedtype: feedToken,
     apikey: process.env.SMARTAPI_API_KEY,
     clientcode: process.env.SMARTAPI_CLIENT_ID,
-    feedtype: "market",
   });
 
   socket.connect().then(() => {
@@ -22,7 +23,6 @@ function initMarketSocket() {
   });
 
   socket.on("tick", (data) => {
-    // later: broadcast to frontend
     console.log("Tick:", data);
   });
 
@@ -45,3 +45,7 @@ function subscribeTokens({ exchangeType, tokens }) {
   socket.fetchData(request);
 }
 
+module.exports = {
+  initMarketSocket,
+  subscribeTokens
+};

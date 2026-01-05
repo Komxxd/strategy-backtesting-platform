@@ -1,9 +1,8 @@
 const smartApi = require("../config/smartapi");
 const speakeasy = require("speakeasy");
+const marketSocketService = require("./marketSocket.service");
 
 let sessionData = null;
-
-
 
 async function login() {
     const totp = speakeasy.totp({
@@ -17,11 +16,19 @@ async function login() {
     totp
   );
 
+  console.log("LOGIN RESPONSE:", JSON.stringify(sessionData, null, 2));
+
+
     smartApi.setAccessToken(sessionData.data.jwtToken);
 
     //console.log("SmartAPI instance keys:", Object.keys(smartApi));
 
-  return sessionData;
+    marketSocketService.initMarketSocket({
+      jwtToken: sessionData.data.jwtToken,
+      feedToken: sessionData.data.feedToken,
+    });
+
+    return sessionData;
 }
 
 function getSession() {
