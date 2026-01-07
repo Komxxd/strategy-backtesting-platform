@@ -7,6 +7,10 @@ let instruments = [];
 let loaded = false;
 
 function loadInstruments() {
+  const nifty = instruments.find(
+  (i) => i.name === "NIFTY" || i.symbol === "NIFTY"
+);
+
   if (loaded) return;
 
   const raw = fs.readFileSync(INSTRUMENT_PATH, "utf-8");
@@ -35,24 +39,34 @@ function searchInstruments({ query, exchange, type }) {
     }
 
     // ---- type filter ----
-    if (type === "EQUITY") {
-      return (
-        inst.instrumenttype === "AMXSTK" ||
-        inst.instrumenttype === "AMXIDX" ||
-        inst.instrumenttype === "INDEX" ||
-        inst.instrumenttype === ""
-      );
-    }
+if (type === "EQUITY") {
+  return (
+    inst.instrumenttype === "" ||
+    inst.instrumenttype === "AMXSTK"
+  );
+}
 
-    if (type === "FUTURES") {
-      return inst.instrumenttype === "FUTSTK" ||
-             inst.instrumenttype === "FUTIDX";
-    }
+if (type === "INDEX") {
+  return (
+    inst.instrumenttype === "AMXIDX" ||
+    inst.instrumenttype === "INDEX"
+  );
+}
 
-    if (type === "OPTIONS") {
-      return inst.instrumenttype === "OPTSTK" ||
-             inst.instrumenttype === "OPTIDX";
-    }
+if (type === "FUTURES") {
+  return (
+    inst.instrumenttype === "FUTSTK" ||
+    inst.instrumenttype === "FUTIDX"
+  );
+}
+
+if (type === "OPTIONS") {
+  return (
+    inst.instrumenttype === "OPTSTK" ||
+    inst.instrumenttype === "OPTIDX"
+  );
+}
+
 
     return true;
   }).slice(0, 50);
