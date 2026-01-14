@@ -25,4 +25,29 @@ router.post("/ltp", async (req, res) => {
   }
 });
 
+router.post("/candles", async (req, res) => {
+  try {
+    const { exchange, symboltoken, interval, fromdate, todate } = req.body;
+
+    if (!exchange || !symboltoken || !interval || !fromdate || !todate) {
+      return res.status(400).json({
+        success: false,
+        message: "exchange, symboltoken, interval, fromdate, todate are required",
+      });
+    }
+
+    const candles = await marketService.getHistoricalData({
+      exchange,
+      symboltoken,
+      interval,
+      fromdate,
+      todate,
+    });
+
+    res.json({ success: true, data: candles });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

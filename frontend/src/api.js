@@ -62,3 +62,11 @@ export async function subscribeToTokens({ exchangeType, tokens }) {
   return res.json();
 }
 
+export async function fetchCandles({ exchange, symboltoken, interval, fromdate, todate }) {
+  const res = await fetch(`${API_BASE}/market/candles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ exchange, symboltoken, interval, fromdate, todate }),
+  });
+  return res.json();
+}

@@ -9,6 +9,22 @@ async function getLTP({ exchange, symboltoken }) {
   });
 }
 
+async function getHistoricalData({ exchange, symboltoken, interval, fromdate, todate }) {
+  try {
+    return await smartApi.getCandleData({
+      exchange,
+      symboltoken,
+      interval,
+      fromdate,
+      todate,
+    });
+  } catch (error) {
+    console.error("SmartAPI getCandleData error:", error);
+    throw error;
+  }
+}
+
 module.exports = {
   getLTP,
+  getHistoricalData,
 };

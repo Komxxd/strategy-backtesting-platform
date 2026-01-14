@@ -1,22 +1,32 @@
 import { useState, useEffect, useRef } from "react";
 import { loginBackend, searchInstruments, getLTP, initSocket, subscribeToTokens } from "./api";
 import OptionChain from "./OptionChain";
+import { Chart } from "./Chart";
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
-  const [watchlist, setWatchlist] = useState([]); // Array of added instruments
-  const [livePrices, setLivePrices] = useState({}); // Map: token -> price
+  const [watchlist, setWatchlist] = useState([]);
+  const [livePrices, setLivePrices] = useState({});
 
   const [selected, setSelected] = useState(null);
   const [searchType, setSearchType] = useState("EQUITY");
-  const [ltp, setLtp] = useState(null); // Selected instrument LTP (can be derived from livePrices too, but kept for standalone logic if needed)
-  const [showOptionChain, setShowOptionChain] = useState(false);
+  const [ltp, setLtp] = useState(null);
+
+  // View State: 'quote', 'chart', 'optionChain'
+  const [activeView, setActiveView] = useState("chart");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const socketRef = useRef(null);
+
+  // ... (useEffect for socket, handleLogin, etc. - keep existing) ...
+  // Re-pasting the socket effect and handlers to ensure context isn't lost if I replace the top part, 
+  // but simpler to just replace the rendering part or use a smaller diff if possible.
+  // Since I need to import Chart at the top, I will assume the previous imports are handled if I replace lines.
+  // Actually, I will replace the component rendering mainly.
 
   useEffect(() => {
     if (loggedIn) {
@@ -25,25 +35,18 @@ function App() {
 
       socket.on("connect", () => {
         console.log("Socket connected");
-        // Re-subscribe to everything in watchlist on reconnect?
-        // Ideally yes, but simpler logic for now.
       });
 
       socket.on("tick", (data) => {
-        // console.log("Tick", data);
-        const token = data.token?.replace(/"/g, ''); // Remove quotes if present
+        const token = data.token?.replace(/"/g, '');
         const rawPrice = Number(data.last_traded_price || data.ltp);
 
         if (token && !isNaN(rawPrice)) {
           const price = rawPrice / 100;
-
-          // Update central price map
           setLivePrices(prev => ({
             ...prev,
             [token]: price
           }));
-
-          // Update selected LTP if it matches
           if (selected && selected.token === token) {
             setLtp(price);
           }
@@ -99,13 +102,10 @@ function App() {
   }
 
   async function addToWatchlist(inst) {
-    // Check if already exists
     if (watchlist.find(w => w.token === inst.token)) return;
-
     const newWatchlist = [...watchlist, inst];
     setWatchlist(newWatchlist);
 
-    // Subscribe to live data
     if (loggedIn) {
       try {
         let exchCode = 1;
@@ -122,7 +122,6 @@ function App() {
       }
     }
 
-    // Also fetch initial price immediately
     try {
       const res = await getLTP({
         exchange: inst.exch_seg,
@@ -300,30 +299,45 @@ function App() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-4">
+              {/* View Toggles */}
+              <div className="flex gap-4 border-b border-zinc-800 pb-2">
                 <button
-                  onClick={() => setShowOptionChain(!showOptionChain)}
-                  className={`px-6 py-3 rounded-lg font-medium text-sm transition-all duration-200 border ${showOptionChain
-                    ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/20'
-                    : 'bg-zinc-900 text-zinc-300 border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600'
-                    }`}
+                  onClick={() => setActiveView("chart")}
+                  className={`pb-2 text-sm font-medium transition-all ${activeView === "chart" ? "text-blue-500 border-b-2 border-blue-500" : "text-zinc-400 hover:text-zinc-200"}`}
                 >
-                  {showOptionChain ? "Hide Option Chain" : "View Option Chain"}
+                  Chart
                 </button>
-                <button className="px-6 py-3 bg-zinc-900 hover:bg-zinc-800 text-emerald-400 border border-zinc-700 hover:border-emerald-500/50 rounded-lg text-sm font-medium transition-all">
-                  Buy Order
-                </button>
-                <button className="px-6 py-3 bg-zinc-900 hover:bg-zinc-800 text-red-400 border border-zinc-700 hover:border-red-500/50 rounded-lg text-sm font-medium transition-all">
-                  Sell Order
+                <button
+                  onClick={() => setActiveView("optionChain")}
+                  className={`pb-2 text-sm font-medium transition-all ${activeView === "optionChain" ? "text-blue-500 border-b-2 border-blue-500" : "text-zinc-400 hover:text-zinc-200"}`}
+                >
+                  Option Chain
                 </button>
               </div>
 
-              {showOptionChain && (
+              {/* View Content */}
+              {activeView === "chart" && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <Chart
+                    symbol={selected.symbol}
+                    token={selected.token}
+                    exchange={selected.exch_seg}
+                  />
+                </div>
+              )}
+
+              {activeView === "optionChain" && (
                 <OptionChain
                   symbol={normalizeUnderlying(selected)}
                   spotPrice={ltp}
                 />
               )}
+
+              <div className="flex gap-4 mt-4">
+                <button className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-emerald-900/20">Buy</button>
+                <button className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-red-900/20">Sell</button>
+              </div>
+
             </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center bg-zinc-900/30 border-2 border-dashed border-zinc-800 rounded-xl p-12 text-center">
