@@ -1,6 +1,29 @@
-import { createChart, ColorType, CandlestickSeries } from 'lightweight-charts';
+// Basic Tooltip
+const Tooltip = ({ text, children }) => (
+    <div className="group relative flex items-center justify-center">
+        {children}
+        <div className="absolute bottom-full mb-2 px-3 py-2 bg-zinc-800 text-zinc-200 text-xs rounded border border-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl w-48 text-center whitespace-normal leading-relaxed backdrop-blur-sm left-1/2 -translate-x-1/2">
+            {text}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-700"></div>
+        </div>
+    </div>
+);
+
+// Simple SMA Calculation
+function calculateSMA(data, period) {
+    const smaData = [];
+    for (let i = period - 1; i < data.length; i++) {
+        const slice = data.slice(i - period + 1, i + 1);
+        const sum = slice.reduce((acc, val) => acc + val.close, 0);
+        smaData.push({ time: data[i].time, value: sum / period });
+    }
+    return smaData;
+}
+
+import { createChart, ColorType, CandlestickSeries, LineSeries } from 'lightweight-charts';
 import { useEffect, useRef, useState } from 'react';
 import { fetchCandles, initSocket, subscribeToTokens } from './api';
+import { Info } from 'lucide-react';
 
 const INTERVALS = [
     { label: '1m', value: 'ONE_MINUTE', days: 10 },
@@ -18,9 +41,10 @@ export const Chart = ({ symbol, exchange, token }) => {
     const [loading, setLoading] = useState(false);
     const chartRef = useRef(null);
     const seriesRef = useRef(null);
+    const maSeriesRef = useRef(null);
 
     const [interval, setInterval] = useState(INTERVALS[7]); // Default 1d
-    const [customInterval, setCustomInterval] = useState("");
+    const [showSMA, setShowSMA] = useState(false);
 
     // Re-create chart when symbol or interval changes
     useEffect(() => {
@@ -69,7 +93,14 @@ export const Chart = ({ symbol, exchange, token }) => {
         });
         seriesRef.current = candleSeries;
 
+        let maSeries = null;
+        if (showSMA) {
+            maSeries = chart.addSeries(LineSeries, { color: '#fbbf24', lineWidth: 2 });
+            maSeriesRef.current = maSeries;
+        }
+
         let lastCandle = null;
+        let allData = []; // Store for SMA calc
 
         // Fetch Data
         const loadData = async () => {
@@ -111,8 +142,15 @@ export const Chart = ({ symbol, exchange, token }) => {
                     });
 
                     data.sort((a, b) => (typeof a.time === 'string' ? a.time.localeCompare(b.time) : a.time - b.time));
+                    allData = data;
 
                     candleSeries.setData(data);
+
+                    if (maSeries) {
+                        const smaData = calculateSMA(data, 20); // SMA 20
+                        maSeries.setData(smaData);
+                    }
+
                     lastCandle = data[data.length - 1];
                     chart.timeScale().fitContent();
                 }
@@ -152,6 +190,8 @@ export const Chart = ({ symbol, exchange, token }) => {
                 try {
                     candleSeries.update(updatedCandle);
                     lastCandle = updatedCandle;
+                    // Note: Updating SMA in real-time is complex as it requires re-calculating the last point based on window.
+                    // For MVP, we don't update SMA live, it refreshes on load.
                 } catch (e) {
                     // Chart likely disposed
                 }
@@ -176,26 +216,43 @@ export const Chart = ({ symbol, exchange, token }) => {
                 chartRef.current.remove();
                 chartRef.current = null;
                 seriesRef.current = null;
+                maSeriesRef.current = null;
             }
         };
-    }, [symbol, token, interval]); // Re-run when interval changes
+    }, [symbol, token, interval, showSMA]);
 
     return (
         <div className="flex flex-col gap-2">
-            {/* Interval Selector */}
-            <div className="flex flex-wrap gap-2 pb-2 border-b border-zinc-800">
-                {INTERVALS.map((int) => (
-                    <button
-                        key={int.value}
-                        onClick={() => setInterval(int)}
-                        className={`px-3 py-1 text-xs font-medium rounded transition-all ${interval.value === int.value
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
-                            }`}
-                    >
-                        {int.label}
-                    </button>
-                ))}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-zinc-800">
+                <div className="flex gap-2">
+                    {INTERVALS.map((int) => (
+                        <button
+                            key={int.value}
+                            onClick={() => setInterval(int)}
+                            className={`px-3 py-1 text-xs font-medium rounded transition-all ${interval.value === int.value
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                                }`}
+                        >
+                            {int.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Tooltip text="Simple Moving Average (20 periods). Helps identify trends.">
+                        <button
+                            onClick={() => setShowSMA(!showSMA)}
+                            className={`px-3 py-1 text-xs font-medium rounded border transition-all flex items-center gap-2 ${showSMA
+                                ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/50'
+                                : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-zinc-200'
+                                }`}
+                        >
+                            {showSMA && <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>}
+                            SMA 20
+                        </button>
+                    </Tooltip>
+                </div>
             </div>
 
             <div className="relative">

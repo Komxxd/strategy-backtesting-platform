@@ -333,11 +333,6 @@ function App() {
                 />
               )}
 
-              <div className="flex gap-4 mt-4">
-                <button className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-emerald-900/20">Buy</button>
-                <button className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-red-900/20">Sell</button>
-              </div>
-
             </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center bg-zinc-900/30 border-2 border-dashed border-zinc-800 rounded-xl p-12 text-center">
