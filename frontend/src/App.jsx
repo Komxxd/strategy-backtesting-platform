@@ -1,354 +1,204 @@
-import { useState, useEffect, useRef } from "react";
-import { loginBackend, searchInstruments, getLTP, initSocket, subscribeToTokens } from "./api";
-import OptionChain from "./OptionChain";
-import { Chart } from "./Chart";
 
-function App() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [watchlist, setWatchlist] = useState([]);
-  const [livePrices, setLivePrices] = useState({});
+import { useState } from "react";
+import StrategyForm from "./StrategyForm";
+import { Play } from "lucide-react";
 
-  const [selected, setSelected] = useState(null);
-  const [searchType, setSearchType] = useState("EQUITY");
-  const [ltp, setLtp] = useState(null);
-
-  // View State: 'quote', 'chart', 'optionChain'
-  const [activeView, setActiveView] = useState("chart");
-
+export default function App() {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [results, setResults] = useState(null);
+  // Debug Modal State
+  const [debugTrade, setDebugTrade] = useState(null);
 
-  const socketRef = useRef(null);
-
-  // ... (useEffect for socket, handleLogin, etc. - keep existing) ...
-  // Re-pasting the socket effect and handlers to ensure context isn't lost if I replace the top part, 
-  // but simpler to just replace the rendering part or use a smaller diff if possible.
-  // Since I need to import Chart at the top, I will assume the previous imports are handled if I replace lines.
-  // Actually, I will replace the component rendering mainly.
-
-  useEffect(() => {
-    if (loggedIn) {
-      const socket = initSocket();
-      socketRef.current = socket;
-
-      socket.on("connect", () => {
-        console.log("Socket connected");
-      });
-
-      socket.on("tick", (data) => {
-        const token = data.token?.replace(/"/g, '');
-        const rawPrice = Number(data.last_traded_price || data.ltp);
-
-        if (token && !isNaN(rawPrice)) {
-          const price = rawPrice / 100;
-          setLivePrices(prev => ({
-            ...prev,
-            [token]: price
-          }));
-          if (selected && selected.token === token) {
-            setLtp(price);
-          }
-        }
-      });
-
-      return () => {
-        socket.off("tick");
-        socket.off("connect");
-      };
-    }
-  }, [loggedIn, selected]);
-
-  function normalizeUnderlying(inst) {
-    if (inst.name === "NIFTY") return "NIFTY";
-    if (inst.name === "NIFTY BANK") return "BANKNIFTY";
-    if (inst.name === "Nifty Bank") return "BANKNIFTY";
-    return inst.name;
-  }
-
-  async function handleLogin() {
+  const handleRunBacktest = async (params) => {
     setLoading(true);
-    setError(null);
+    setResults(null);
+    setDebugTrade(null);
     try {
-      const res = await loginBackend();
-      if (res.success) {
-        setLoggedIn(true);
-        setError(null);
-      } else {
-        setError("Login failed. Please check your credentials.");
-      }
-    } catch (err) {
-      setError("Login error: " + err.message);
+      // Simulate API call for now or connect to backend
+      console.log("Running backtest with:", params);
+
+      const response = await fetch('http://localhost:5001/api/backtest/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      });
+      const data = await response.json();
+      setResults(data);
+
+    } catch (error) {
+      console.error("Backtest error", error);
+      alert("Failed to run backtest");
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handleSearch() {
-    if (!query.trim()) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const exchange = searchType === "OPTIONS" || searchType === "FUTURES" ? "NFO" : "NSE";
-      const res = await searchInstruments({ query, exchange, type: searchType });
-      setResults(res.data || []);
-      if ((res.data || []).length === 0) setError("No instruments found");
-    } catch (err) {
-      setError("Search error: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function addToWatchlist(inst) {
-    if (watchlist.find(w => w.token === inst.token)) return;
-    const newWatchlist = [...watchlist, inst];
-    setWatchlist(newWatchlist);
-
-    if (loggedIn) {
-      try {
-        let exchCode = 1;
-        if (inst.exch_seg === "NSE") exchCode = 1;
-        else if (inst.exch_seg === "NFO") exchCode = 2;
-        else if (inst.exch_seg === "BSE") exchCode = 3;
-
-        await subscribeToTokens({
-          exchangeType: exchCode,
-          tokens: [inst.token]
-        });
-      } catch (err) {
-        console.error("Failed to subscribe", err);
-      }
-    }
-
-    try {
-      const res = await getLTP({
-        exchange: inst.exch_seg,
-        tradingsymbol: inst.symbol,
-        symboltoken: inst.token,
-      });
-      const fetched = res.data?.data?.fetched;
-      if (fetched && fetched.length > 0 && typeof fetched[0].ltp === "number") {
-        const price = fetched[0].ltp / 100;
-        setLivePrices(prev => ({ ...prev, [inst.token]: price }));
-      }
-    } catch (err) {/* ignore */ }
-  }
-
-  function removeFromWatchlist(token) {
-    setWatchlist(prev => prev.filter(i => i.token !== token));
-  }
+  };
 
   return (
-    <div className="max-w-[1600px] mx-auto p-6 min-h-screen text-zinc-100 font-sans">
-      <header className="flex justify-between items-center mb-10 border-b border-zinc-800 pb-6">
-        <div className="flex items-center gap-4">
-          <div className={`w-3 h-3 rounded-full ${loggedIn ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]'}`}></div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            AlgoTerminal<span className="text-blue-500 text-3xl">.</span>
-          </h1>
-        </div>
-        <div className="flex items-center gap-4">
-          {loggedIn && (
-            <span className="flex items-center px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-semibold uppercase tracking-wider backdrop-blur-sm">
-              ● System Online
-            </span>
-          )}
-          <button
-            onClick={handleLogin}
-            disabled={loading || loggedIn}
-            className={`px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 ${loggedIn
-              ? 'bg-emerald-600 text-white cursor-default shadow-lg shadow-emerald-900/20'
-              : 'bg-blue-600 hover:bg-blue-500 text-white hover:shadow-lg hover:shadow-blue-900/20 active:translate-y-px'
-              }`}
-          >
-            {loggedIn ? "Connected" : "Connect Broker"}
-          </button>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-blue-500/30">
+
+      {/* Header */}
+      <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">A</div>
+            <h1 className="text-lg font-bold tracking-tight">AlgoTerminal <span className="text-zinc-500 font-normal">Backtest</span></h1>
+          </div>
         </div>
       </header>
 
-      {error && (
-        <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
-          <span className="text-red-500 text-lg">⚠</span>
-          <span className="text-red-400 text-sm font-medium">{error}</span>
-        </div>
-      )}
+      <main className="max-w-[1600px] mx-auto p-6 grid grid-cols-1 lg:grid-cols-[1fr_3fr] gap-8">
 
-      <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8 transition-all duration-300 ease-in-out">
-        {/* Left Column */}
+        {/* Sidebar */}
         <div className="flex flex-col gap-6">
+          <StrategyForm onRunBacktest={handleRunBacktest} loading={loading} />
 
-          {/* Watchlist Section */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 shadow-xl backdrop-blur-sm flex flex-col h-[400px]">
-            <h3 className="mb-4 text-lg font-semibold text-zinc-100 flex justify-between items-center">
-              <span>Market Watch</span>
-              <span className="text-xs bg-zinc-800 px-2 py-1 rounded text-zinc-400">{watchlist.length}</span>
-            </h3>
-            <div className="overflow-y-auto flex-1 pr-2 space-y-2 custom-scrollbar">
-              {watchlist.length === 0 ? (
-                <div className="text-zinc-500 text-sm text-center mt-10 italic">Your watchlist is empty.<br />Add symbols from search below.</div>
-              ) : (
-                watchlist.map(item => {
-                  const price = livePrices[item.token];
-                  return (
-                    <div
-                      key={item.token}
-                      className={`flex justify-between items-center p-3 rounded-lg border cursor-pointer transition-all ${selected?.token === item.token ? 'bg-zinc-800 border-zinc-600' : 'bg-zinc-950/30 border-zinc-800/50 hover:bg-zinc-800/50'}`}
-                      onClick={() => { setSelected(item); setLtp(price || null); }}
-                    >
-                      <div>
-                        <div className="font-semibold text-zinc-200 text-sm">{item.symbol}</div>
-                        <div className="text-[10px] text-zinc-500 uppercase">{item.exch_seg}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`font-mono font-medium ${price ? 'text-emerald-400' : 'text-zinc-600'}`}>
-                          {price ? `₹${price.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "---.--"}
-                        </div>
-                        <button
-                          className="text-[10px] text-red-500/50 hover:text-red-500 mt-1"
-                          onClick={(e) => { e.stopPropagation(); removeFromWatchlist(item.token); }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Search Section */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 shadow-xl backdrop-blur-sm">
-            <h3 className="mb-4 text-base font-semibold text-zinc-300">Add Instrument</h3>
-            <div className="flex gap-2 mb-4">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                placeholder="Search..."
-                className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:border-blue-500 outline-none"
-                disabled={loading}
-              />
-              <select
-                value={searchType}
-                onChange={(e) => setSearchType(e.target.value)}
-                disabled={loading}
-                className="w-20 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-2 text-sm text-zinc-100 outline-none"
-              >
-                <option value="EQUITY">Eq</option>
-                <option value="INDEX">Idx</option>
-              </select>
-            </div>
-            <button
-              onClick={handleSearch}
-              disabled={loading || !query.trim()}
-              className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 px-3 py-2 rounded-lg text-sm transition-all"
-            >
-              {loading ? "..." : "Search"}
-            </button>
-
-            {results.length > 0 && (
-              <div className="mt-4 max-h-[200px] overflow-y-auto custom-scrollbar space-y-1">
-                {results.map((r) => (
-                  <div
-                    key={r.token}
-                    className="flex justify-between items-center p-2 rounded hover:bg-zinc-800 transition-all cursor-pointer group"
-                  >
-                    <div onClick={() => setSelected(r)}>
-                      <div className="font-semibold text-zinc-200 text-xs">{r.symbol}</div>
-                      <div className="text-[10px] text-zinc-500">{r.name}</div>
-                    </div>
-                    <button
-                      onClick={() => addToWatchlist(r)}
-                      className="text-xs bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-all"
-                    >
-                      + Add
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-5 text-zinc-400 text-sm">
+            <h3 className="text-zinc-200 font-semibold mb-2">Instructions</h3>
+            <ul className="list-disc pl-4 space-y-1">
+              <li>Select the index to trade (Nifty/BankNifty).</li>
+              <li>Choose option type (CE/PE) and direction.</li>
+              <li>Set precise entry/exit times.</li>
+              <li>Stop Loss is checked on 1-min candles.</li>
+            </ul>
           </div>
         </div>
 
-        {/* Right Column: Details & Option Chain */}
-        <div className="flex flex-col gap-6 min-w-0">
-          {selected ? (
-            <>
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-8 shadow-xl backdrop-blur-md flex flex-wrap justify-between items-end gap-6 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -z-10 group-hover:bg-blue-500/10 transition-colors duration-500"></div>
+        {/* Results Area */}
+        <div className="flex flex-col gap-6">
+          {loading && (
+            <div className="flex-1 flex flex-col items-center justify-center bg-zinc-900/30 border-2 border-dashed border-zinc-800 rounded-xl min-h-[500px]">
+              <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <div className="text-zinc-400">Crunching historical data...</div>
+            </div>
+          )}
 
-                <div>
-                  <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-white leading-none mb-2">
-                    {selected.symbol}
-                  </h2>
-                  <div className="flex items-center gap-3 text-zinc-400 text-sm">
-                    <span className="font-medium">{selected.name}</span>
-                    <span className="w-1 h-1 rounded-full bg-zinc-600"></span>
-                    <span className="font-mono text-zinc-500">{selected.exch_seg}</span>
+          {!loading && !results && (
+            <div className="flex-1 flex flex-col items-center justify-center bg-zinc-900/30 border-2 border-dashed border-zinc-800 rounded-xl min-h-[500px]">
+              <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mb-4 text-3xl">
+                📊
+              </div>
+              <h3 className="text-xl font-medium text-zinc-300 mb-2">Ready to Backtest</h3>
+              <p className="text-zinc-500 max-w-sm text-center">Configure your strategy parameters on the left and hit "Run Backtest" to see performance metrics.</p>
+            </div>
+          )}
+
+          {!loading && results && (
+            <div className="space-y-6">
+              {/* KPI Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                  <div className="text-zinc-500 text-xs uppercase font-medium">Total P&L</div>
+                  <div className={`text-2xl font-bold font-mono ${results.totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {results.totalPnL >= 0 ? '+' : ''}{results.totalPnL.toFixed(2)}
                   </div>
                 </div>
-
-                <div className="text-right">
-                  <div className="text-sm font-medium text-zinc-500 mb-1 uppercase tracking-wider">Last Traded Price</div>
-                  <div className={`font-mono text-5xl font-bold tracking-tight animate-in fade-in zoom-in ${livePrices[selected.token] ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.2)]' : 'text-zinc-700'}`}>
-                    {livePrices[selected.token] ? `₹${livePrices[selected.token].toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="animate-pulse">---.--</span>}
+                <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                  <div className="text-zinc-500 text-xs uppercase font-medium">Win Rate</div>
+                  <div className="text-2xl font-bold text-blue-400 font-mono">
+                    {results.winRate}%
+                  </div>
+                  <div className="text-xs text-zinc-500">{results.wins}W / {results.losses}L</div>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                  <div className="text-zinc-500 text-xs uppercase font-medium">Total Trades</div>
+                  <div className="text-2xl font-bold text-zinc-200 font-mono">
+                    {results.totalTrades}
+                  </div>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                  <div className="text-zinc-500 text-xs uppercase font-medium">Max Drawdown</div>
+                  <div className="text-2xl font-bold text-red-400 font-mono">
+                    {results.maxDrawdown}
                   </div>
                 </div>
               </div>
 
-              {/* View Toggles */}
-              <div className="flex gap-4 border-b border-zinc-800 pb-2">
-                <button
-                  onClick={() => setActiveView("chart")}
-                  className={`pb-2 text-sm font-medium transition-all ${activeView === "chart" ? "text-blue-500 border-b-2 border-blue-500" : "text-zinc-400 hover:text-zinc-200"}`}
-                >
-                  Chart
-                </button>
-                <button
-                  onClick={() => setActiveView("optionChain")}
-                  className={`pb-2 text-sm font-medium transition-all ${activeView === "optionChain" ? "text-blue-500 border-b-2 border-blue-500" : "text-zinc-400 hover:text-zinc-200"}`}
-                >
-                  Option Chain
-                </button>
-              </div>
-
-              {/* View Content */}
-              {activeView === "chart" && (
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                  <Chart
-                    symbol={selected.symbol}
-                    token={selected.token}
-                    exchange={selected.exch_seg}
-                  />
+              {/* Trade List */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-zinc-800 font-semibold text-zinc-200">Trade Log</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-zinc-500 uppercase bg-zinc-950/50">
+                      <tr>
+                        <th className="px-6 py-3">Date</th>
+                        <th className="px-6 py-3">Signal</th>
+                        <th className="px-6 py-3">Entry Price</th>
+                        <th className="px-6 py-3">Exit Price</th>
+                        <th className="px-6 py-3">P&L</th>
+                        <th className="px-6 py-3">Reason</th>
+                        <th className="px-6 py-3">Data</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800">
+                      {results.trades.map((trade, i) => (
+                        <tr key={i} className="hover:bg-zinc-800/50 transition-colors">
+                          <td className="px-6 py-4 font-mono text-zinc-300">{trade.date}</td>
+                          <td className="px-6 py-4 text-zinc-300">{trade.signal}</td>
+                          <td className="px-6 py-4 font-mono text-zinc-400">{trade.entryPrice}</td>
+                          <td className="px-6 py-4 font-mono text-zinc-400">{trade.exitPrice}</td>
+                          <td className={`px-6 py-4 font-mono font-bold ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{trade.pnl}</td>
+                          <td className="px-6 py-4 text-zinc-500 text-xs">{trade.exitReason}</td>
+                          <td className="px-6 py-4">
+                            <button
+                              onClick={() => setDebugTrade(trade)}
+                              className="text-xs text-blue-400 hover:text-blue-300 underline"
+                            >
+                              Verify
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-
-              {activeView === "optionChain" && (
-                <OptionChain
-                  symbol={normalizeUnderlying(selected)}
-                  spotPrice={ltp}
-                />
-              )}
-
-            </>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center bg-zinc-900/30 border-2 border-dashed border-zinc-800 rounded-xl p-12 text-center">
-              <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
-                <span className="text-2xl">🔍</span>
               </div>
-              <h3 className="text-xl font-medium text-zinc-300 mb-2">No Instrument Selected</h3>
-              <p className="text-zinc-500 max-w-sm">Use the search panel on the left to add stocks to your Watchlist.</p>
             </div>
           )}
         </div>
-      </div>
+      </main>
+
+      {/* Debug Modal */}
+      {debugTrade && debugTrade.debugData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setDebugTrade(null)}>
+          <div className="bg-zinc-950 border border-zinc-800 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900">
+              <h3 className="font-semibold text-zinc-100">{debugTrade.date} Data Verification</h3>
+              <button onClick={() => setDebugTrade(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div>
+                <h4 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-2">Source Info</h4>
+                <div className="bg-zinc-900 p-3 rounded-lg border border-zinc-800/50 text-xs text-zinc-300 grid grid-cols-2 gap-2">
+                  <div><span className="text-zinc-500">Total Candles:</span> {debugTrade.debugData.totalCandles}</div>
+                  <div><span className="text-zinc-500">Source:</span> Angel One Historical API</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-sm font-medium text-emerald-400 uppercase tracking-wider mb-2">First Candle (Open)</h4>
+                  <pre className="bg-zinc-900 p-3 rounded-lg border border-zinc-800/50 text-xs text-zinc-400 overflow-x-auto font-mono">
+                    {JSON.stringify(debugTrade.debugData.firstCandle, null, 2)}
+                  </pre>
+                  <div className="text-[10px] text-zinc-500 mt-1">* [Time, Open, High, Low, Close, Vol]</div>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-red-400 uppercase tracking-wider mb-2">Last Candle (Close)</h4>
+                  <pre className="bg-zinc-900 p-3 rounded-lg border border-zinc-800/50 text-xs text-zinc-400 overflow-x-auto font-mono">
+                    {JSON.stringify(debugTrade.debugData.lastCandle, null, 2)}
+                  </pre>
+                </div>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg text-sm text-blue-200">
+                <strong>Logic Verification:</strong><br />
+                This trade used {debugTrade.debugData.totalCandles} minute candles to simulate the path.
+                The prices shown above are the <strong>Spot Index</strong> prices used for calculation.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-export default App;
-
-
