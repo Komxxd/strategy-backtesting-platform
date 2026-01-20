@@ -17,7 +17,7 @@ export default function App() {
       // Simulate API call for now or connect to backend
       console.log("Running backtest with:", params);
 
-      const response = await fetch('http://localhost:5001/api/backtest/run', {
+      const response = await fetch('/api/backtest/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
