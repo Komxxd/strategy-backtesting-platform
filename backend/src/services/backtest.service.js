@@ -250,7 +250,8 @@ class BacktestService {
 
         if (exitIndex === -1) {
             // Didn't exit by valid logic (maybe data ran out before exit time)
-            exitPrice = candles[candles.length - 1][4];
+            exitIndex = candles.length - 1;
+            exitPrice = candles[exitIndex][4];
         }
 
         // --- FINAL COMPUTE (BLACK-SCHOLES) ---
