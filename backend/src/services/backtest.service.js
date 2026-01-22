@@ -1,5 +1,7 @@
 
+
 const smartApi = require("./smartApi.service");
+const { blackScholes, blackScholesDetails, getNextExpiry } = require('../utils/blackScholes');
 
 class BacktestService {
     /**
@@ -71,11 +73,7 @@ class BacktestService {
                 // We will attach the First and Last candle of the day processed to verify data range
                 // And maybe the candle at Entry Time
                 if (candles.length > 0) {
-                    trade.debugData = {
-                        firstCandle: candles[0],
-                        lastCandle: candles[candles.length - 1],
-                        totalCandles: candles.length
-                    };
+                    // trade.debugData already returned by processDay
                 }
 
                 results.totalTrades++;
@@ -92,6 +90,9 @@ class BacktestService {
                 const dd = peakPnL - cumulativePnL;
                 if (dd > results.maxDrawdown) results.maxDrawdown = dd;
             }
+
+            // Rate Limit Protection: Delay 300ms between requests
+            await new Promise(r => setTimeout(r, 1000));
         }
 
         if (results.totalTrades > 0) {
@@ -169,6 +170,24 @@ class BacktestService {
         let exitReason = "End of Day"; // default
         let exitIndex = -1;
 
+        // --- BLACK-SCHOLES SETUP ---
+        const IV = 0.20;
+        const RISK_FREE = 0.10;
+
+        const strikeStep = params.index === "SENSEX" ? 100 : 50;
+        const atmStrike = Math.round(entryPrice / strikeStep) * strikeStep;
+
+        const entryDateObj = new Date(candles[entryCandleIndex][0]);
+        const expiryDate = getNextExpiry(entryDateObj, params.index);
+
+        const getT = (candleTime) => {
+            const diff = expiryDate.getTime() - new Date(candleTime).getTime();
+            return Math.max(0, diff / (1000 * 60 * 60 * 24 * 365.25));
+        };
+
+        const entryT = getT(candles[entryCandleIndex][0]);
+        const entryPremium = blackScholes(entryPrice, atmStrike, entryT, IV, RISK_FREE, params.optionType);
+
         // Loop from Next Candle until End
         for (let i = entryCandleIndex + 1; i < candles.length; i++) {
             const c = candles[i];
@@ -207,13 +226,16 @@ class BacktestService {
             // "Long Delta" strategy (Buy CE, Sell PE) benefits from Up move.
             // "Short Delta" strategy (Buy PE, Sell CE) benefits from Down move.
 
-            let isLongDelta = false;
-            if ((params.optionType === "CE" && params.position === "BUY") ||
-                (params.optionType === "PE" && params.position === "SELL")) {
-                isLongDelta = true;
-            }
+            // Black-Scholes Spot Price Check
+            const currentT = getT(c[0]);
+            const currentPremium = blackScholes(currentSpot, atmStrike, currentT, IV, RISK_FREE, params.optionType);
 
-            const pointsChange = (currentSpot - entryPrice) * (isLongDelta ? 1 : -1) * DELTA;
+            let pointsChange = 0;
+            if (params.position === "BUY") {
+                pointsChange = currentPremium - entryPremium;
+            } else {
+                pointsChange = entryPremium - currentPremium;
+            }
 
             // SL Check
             // SL is usually a negative number logic. e.g. if PointsChange < -SL
@@ -231,34 +253,54 @@ class BacktestService {
             exitPrice = candles[candles.length - 1][4];
         }
 
-        // Final PnL Calculation
-        let isLongDelta = false;
-        if ((params.optionType === "CE" && params.position === "BUY") ||
-            (params.optionType === "PE" && params.position === "SELL")) {
-            isLongDelta = true;
+        // --- FINAL COMPUTE (BLACK-SCHOLES) ---
+        const exitT = getT(candles[exitIndex][0]);
+        const exitPremium = blackScholes(exitPrice, atmStrike, exitT, IV, RISK_FREE, params.optionType);
+
+        let pointsPnL = 0;
+        if (params.position === "BUY") {
+            pointsPnL = exitPremium - entryPremium;
+        } else {
+            pointsPnL = entryPremium - exitPremium;
         }
 
-        // Spot moved X
         const totalSpotMove = exitPrice - entryPrice;
-        // Option moved X * 0.5
-        // If Long Delta (Buy CE), we want Spot UP. 
-        // PnL = Move * 0.5
-        // If Short Delta (Buy PE), we want Spot DOWN.
-        // PnL = Move * -1 * 0.5 (so if Move is -100, PnL is +50)
-
-        let pointsPnL = totalSpotMove * (isLongDelta ? 1 : -1) * DELTA;
-
-        // Total Cash PnL
         const numLots = Number(params.lots) || 1;
         const totalPnL = pointsPnL * LOT_SIZE * numLots;
+
+        const tradeSymbol = `${params.index} ${atmStrike} ${params.optionType}`;
+
+        // Detailed Math for Verification
+        const entryBS = blackScholesDetails(entryPrice, atmStrike, entryT, IV, RISK_FREE, params.optionType);
+        const exitBS = blackScholesDetails(exitPrice, atmStrike, exitT, IV, RISK_FREE, params.optionType);
+
+        const debugPayload = {
+            totalCandles: candles.length,
+            expiryDate: expiryDate.toISOString().split('T')[0],
+            iv: IV,
+            riskFree: RISK_FREE,
+            entryT: entryT.toFixed(6),
+            exitT: exitT.toFixed(6),
+            entryPremium: entryPremium.toFixed(2),
+            exitPremium: exitPremium.toFixed(2),
+            theoreticalPnl: pointsPnL.toFixed(2),
+            entryMath: entryBS,
+            exitMath: exitBS
+        };
+        console.log("DEBUG PAYLOAD:", debugPayload);
 
         return {
             date: dateString,
             signal: `${params.position} ${params.optionType}`,
-            entryPrice: entryPrice.toFixed(2), // Spot Price Ref
-            exitPrice: exitPrice.toFixed(2),   // Spot Price Ref
+            symbol: tradeSymbol,
+            strike: atmStrike,
+            entryPrice: entryPrice.toFixed(2),
+            exitPrice: exitPrice.toFixed(2),
+            spotMove: totalSpotMove,
+            optionPoints: pointsPnL,
             pnl: Math.round(totalPnL * 100) / 100,
-            exitReason
+            exitReason,
+            debugData: debugPayload
         };
     }
 

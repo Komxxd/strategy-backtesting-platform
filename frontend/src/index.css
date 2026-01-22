@@ -29,6 +29,19 @@ body {
   @apply bg-zinc-800 rounded-full border-2 border-zinc-900;
 }
 
+
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-zinc-700;
+}
+
+/* Remove number input spin buttons */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }

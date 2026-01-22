@@ -25,161 +25,84 @@ export default function StrategyForm({ onRunBacktest, loading }) {
     };
 
     return (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-xl w-full max-w-sm">
-            <div className="flex items-center gap-2 mb-6 border-b border-zinc-800 pb-4">
-                <TrendingUp className="text-blue-500 w-5 h-5" />
-                <h2 className="text-lg font-semibold text-zinc-100">Strategy Parameters</h2>
-            </div>
+        <div className="w-full bg-[#09090b]/80 backdrop-blur-md border-b border-zinc-800/50 p-4 overflow-x-auto">
+            <form onSubmit={handleSubmit} className="max-w-[1600px] mx-auto flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-6 min-w-[300px]">
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-
-                {/* Index Selection */}
-                <div className="space-y-1">
-                    <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Index</label>
-                    <select
-                        name="index"
-                        value={params.index}
-                        onChange={handleChange}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-zinc-200 outline-none focus:border-blue-500 transition-colors"
-                    >
-                        <option value="NIFTY">NIFTY 50</option>
-                        <option value="SENSEX">SENSEX</option>
-                    </select>
-                </div>
-
-                {/* Option Type & Position */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Type</label>
-                        <div className="flex bg-zinc-950 rounded-lg p-1 border border-zinc-800">
-                            {['CE', 'PE'].map(type => (
-                                <button
-                                    key={type}
-                                    type="button"
-                                    onClick={() => setParams(p => ({ ...p, optionType: type }))}
-                                    className={`flex-1 py-1.5 text-xs font-semibold rounded ${params.optionType === type ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                >
-                                    {type}
-                                </button>
-                            ))}
+                {/* Top Row on Mobile: Index + Type + Side */}
+                <div className="flex flex-wrap gap-4 w-full lg:w-auto">
+                    {/* Index */}
+                    <div className="flex flex-col gap-1.5 flex-1 lg:flex-none min-w-[100px]">
+                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Index</label>
+                        <div className="relative">
+                            <select name="index" value={params.index} onChange={handleChange} className="w-full appearance-none bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-300 font-medium outline-none focus:border-yellow-500/50 focus:text-white transition-colors cursor-pointer hover:bg-zinc-900">
+                                <option value="NIFTY">NIFTY</option>
+                                <option value="SENSEX">SENSEX</option>
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">▾</div>
                         </div>
                     </div>
 
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Position</label>
-                        <div className="flex bg-zinc-950 rounded-lg p-1 border border-zinc-800">
-                            {['BUY', 'SELL'].map(pos => (
-                                <button
-                                    key={pos}
-                                    type="button"
-                                    onClick={() => setParams(p => ({ ...p, position: pos }))}
-                                    className={`flex-1 py-1.5 text-xs font-semibold rounded ${params.position === pos ? (pos === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400') : 'text-zinc-500 hover:text-zinc-300'}`}
-                                >
-                                    {pos}
-                                </button>
-                            ))}
+                    {/* Type & Side */}
+                    <div className="flex gap-2 flex-1 lg:flex-none">
+                        <div className="flex flex-col gap-1.5 flex-1">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Type</label>
+                            <div className="flex bg-zinc-900/50 rounded-lg p-0.5 border border-zinc-800 h-[38px] w-full">
+                                {['CE', 'PE'].map(type => (
+                                    <button key={type} type="button" onClick={() => setParams(p => ({ ...p, optionType: type }))} className={`flex-1 px-2 text-xs font-bold rounded-md transition-all ${params.optionType === type ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-600 hover:text-zinc-400'}`}>{type}</button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-1.5 flex-1">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Side</label>
+                            <div className="flex bg-zinc-900/50 rounded-lg p-0.5 border border-zinc-800 h-[38px] w-full">
+                                {['BUY', 'SELL'].map(pos => (
+                                    <button key={pos} type="button" onClick={() => setParams(p => ({ ...p, position: pos }))} className={`flex-1 px-2 text-xs font-bold rounded-md transition-all ${params.position === pos ? (pos === 'BUY' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20' : 'bg-red-900/30 text-red-400 border border-red-500/20') : 'text-zinc-600 hover:text-zinc-400'}`}>{pos}</button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Trade Type */}
-                <div className="space-y-1">
-                    <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Trade Type</label>
-                    <select
-                        name="tradeType"
-                        value={params.tradeType || "INTRADAY"}
-                        onChange={handleChange}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 text-zinc-200 outline-none focus:border-blue-500 transition-colors"
-                    >
-                        <option value="INTRADAY">INTRADAY</option>
+                {/* Config Group */}
+                <div className="flex flex-wrap lg:flex-nowrap gap-4 lg:gap-6 lg:border-l border-zinc-800/50 lg:pl-6 w-full lg:w-auto">
+                    <div className="flex gap-4 w-full sm:w-auto">
+                        {/* Lots */}
+                        <div className="flex flex-col gap-1.5 flex-1 sm:flex-none w-full sm:w-20">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Lots</label>
+                            <input type="number" name="lots" min="1" value={params.lots || 1} onChange={handleChange} className="w-full bg-transparent border-b border-zinc-800 px-0 py-2 text-sm text-center text-zinc-200 font-mono outline-none focus:border-yellow-500 transition-colors placeholder-zinc-700 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" title="Number of lots" />
+                        </div>
 
-                    </select>
-                </div>
-
-                {/* Times */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> Entry
-                        </label>
-                        <input
-                            type="time"
-                            name="entryTime"
-                            value={params.entryTime}
-                            onChange={handleChange}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 outline-none focus:border-blue-500 text-center"
-                        />
+                        {/* SL */}
+                        <div className="flex flex-col gap-1.5 flex-1 sm:flex-none w-full sm:w-20">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Stop Loss</label>
+                            <div className="relative">
+                                <input type="number" name="stopLoss" value={params.stopLoss} onChange={handleChange} className="w-full bg-transparent border-b border-zinc-800 px-0 py-2 text-sm text-center text-zinc-200 font-mono outline-none focus:border-red-500 transition-colors [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                                <span className="absolute right-0 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600">pts</span>
+                            </div>
+                        </div>
                     </div>
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> Exit
-                        </label>
-                        <input
-                            type="time"
-                            name="exitTime"
-                            value={params.exitTime}
-                            onChange={handleChange}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 outline-none focus:border-blue-500 text-center"
-                        />
+
+                    {/* Times */}
+                    <div className="flex gap-4 w-full sm:w-auto">
+                        <div className="flex flex-col gap-1.5 flex-1">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Entry</label>
+                            <input type="time" name="entryTime" value={params.entryTime} onChange={handleChange} className="w-full bg-transparent border-b border-zinc-800 px-0 py-2 text-sm text-zinc-200 font-mono outline-none focus:border-blue-500 transition-colors cursor-pointer" />
+                        </div>
+                        <div className="flex flex-col gap-1.5 flex-1">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Exit</label>
+                            <input type="time" name="exitTime" value={params.exitTime} onChange={handleChange} className="w-full bg-transparent border-b border-zinc-800 px-0 py-2 text-sm text-zinc-200 font-mono outline-none focus:border-blue-500 transition-colors cursor-pointer" />
+                        </div>
                     </div>
                 </div>
 
-                {/* Lots */}
-                <div className="space-y-1">
-                    <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-                        📦 Lots
-                    </label>
-                    <input
-                        type="number"
-                        name="lots"
-                        min="1"
-                        value={params.lots || 1}
-                        onChange={handleChange}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 outline-none focus:border-blue-500"
-                        placeholder="e.g. 1"
-                    />
-                </div>
-
-                {/* Stop Loss */}
-                <div className="space-y-1">
-                    <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> Stop Loss (Pts)
-                    </label>
-                    <input
-                        type="number"
-                        name="stopLoss"
-                        value={params.stopLoss}
-                        onChange={handleChange}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 outline-none focus:border-blue-500"
-                        placeholder="e.g. 30"
-                    />
-                </div>
-
-                {/* Date Range (Fixed 30 Days) */}
-                <div className="space-y-1 pt-2 border-t border-zinc-800/50">
-                    <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Backtest Period (Last 30 Days)</label>
-                    <div className="flex justify-between items-center bg-zinc-950/50 border border-zinc-800/50 rounded px-3 py-2">
-                        <span className="text-zinc-400 font-mono text-xs">{params.startDate}</span>
-                        <span className="text-zinc-600 text-xs">to</span>
-                        <span className="text-zinc-400 font-mono text-xs">{params.endDate}</span>
-                    </div>
-                </div>
-
-
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium shadow-lg shadow-blue-900/20 active:translate-y-px transition-all flex items-center justify-center gap-2"
-                >
-                    {loading ? (
-                        <RotateCcw className="w-5 h-5 animate-spin" />
-                    ) : (
-                        <Play className="w-5 h-5 fill-current" />
-                    )}
-                    {loading ? "Running Simulation..." : "Run Backtest"}
+                {/* Action */}
+                <button type="submit" disabled={loading} className="w-full lg:w-auto mt-2 lg:mt-0 h-[42px] px-8 bg-zinc-100 hover:bg-white text-black rounded-lg font-bold text-sm tracking-wide shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2 lg:ml-auto">
+                    {loading ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                    {loading ? "SIMULATING..." : "RUN"}
                 </button>
 
             </form>
+
         </div>
     );
 }
